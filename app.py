@@ -412,4 +412,5 @@ def _do_summarize(task, task_id, title, subtitle_text, lang, config,
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=7860, debug=False)
+    port = int(os.environ.get("PORT", 7860))
+    app.run(host="0.0.0.0", port=port, debug=False)
