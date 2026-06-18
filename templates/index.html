@@ -118,12 +118,42 @@
                     <p class="text-[11px] text-gray-400">AI 智能学习笔记生成器</p>
                 </div>
             </div>
-            <a href="/history" class="px-3 py-1.5 text-sm bg-white/60 hover:bg-white/80 border border-gray-200/60 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
-                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                <span class="text-gray-600">历史记录</span>
-            </a>
+            <div class="flex items-center gap-2">
+                <div id="usage-badge" class="hidden px-2.5 py-1 text-xs rounded-lg bg-amber-50 text-amber-700 border border-amber-200/60 font-medium">
+                    剩余 <span id="usage-count">5</span> 次
+                </div>
+                <button id="activate-btn" onclick="showActivateModal()" class="hidden px-2.5 py-1 text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 rounded-lg transition font-medium">
+                    激活
+                </button>
+                <a href="/history" class="px-3 py-1.5 text-sm bg-white/60 hover:bg-white/80 border border-gray-200/60 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                    <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="text-gray-600">历史记录</span>
+                </a>
+            </div>
         </div>
     </header>
+
+    <div id="activate-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 slide-up">
+            <div class="text-center mb-5">
+                <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-brand-50 flex items-center justify-center">
+                    <svg class="w-7 h-7 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                </div>
+                <h3 class="text-lg font-bold text-gray-800">输入激活码</h3>
+                <p class="text-sm text-gray-500 mt-1">输入激活码解锁无限使用</p>
+            </div>
+            <div class="space-y-3">
+                <input id="activation-input" type="text" placeholder="请输入激活码"
+                    class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-400 focus:border-transparent text-center tracking-wider font-mono"
+                    onkeydown="if(event.key==='Enter')submitActivation()">
+                <p id="activation-msg" class="text-xs text-center hidden"></p>
+                <div class="flex gap-2">
+                    <button onclick="closeActivateModal()" class="flex-1 px-4 py-2.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl transition font-medium">取消</button>
+                    <button onclick="submitActivation()" id="activate-submit-btn" class="flex-1 px-4 py-2.5 text-sm bg-brand-500 hover:bg-brand-600 text-white rounded-xl transition font-medium">激活</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         <div id="input-section" class="glass-card rounded-2xl shadow-lg shadow-gray-200/50 p-6 sm:p-8 mb-6 slide-up">
@@ -298,6 +328,119 @@
         let smoothProgress = 0;
         let smoothRaf = null;
         let lastServerProgress = 0;
+        let isActivated = false;
+        let usageCount = 0;
+        let fingerprint = '';
+
+        function getFingerprint() {
+            let fp = localStorage.getItem('vs_fp');
+            if (!fp) {
+                fp = 'fp_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+                localStorage.setItem('vs_fp', fp);
+            }
+            return fp;
+        }
+
+        function initUsage() {
+            fingerprint = getFingerprint();
+            isActivated = localStorage.getItem('vs_activated_' + fingerprint) === '1';
+            usageCount = parseInt(localStorage.getItem('vs_usage_' + fingerprint) || '0', 10);
+            updateUsageUI();
+        }
+
+        function updateUsageUI() {
+            const badge = document.getElementById('usage-badge');
+            const activateBtn = document.getElementById('activate-btn');
+            if (isActivated) {
+                badge.classList.add('hidden');
+                activateBtn.classList.add('hidden');
+            } else {
+                badge.classList.remove('hidden');
+                document.getElementById('usage-count').textContent = Math.max(0, FREE_USAGE_LIMIT - usageCount);
+                if (usageCount >= FREE_USAGE_LIMIT) {
+                    badge.className = 'hidden sm:flex px-2.5 py-1 text-xs rounded-lg bg-red-50 text-red-600 border border-red-200/60 font-medium items-center gap-1';
+                    badge.classList.remove('hidden');
+                    badge.innerHTML = '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>已用完，请激活';
+                    activateBtn.classList.remove('hidden');
+                } else {
+                    activateBtn.classList.add('hidden');
+                }
+            }
+        }
+
+        const FREE_USAGE_LIMIT = 5;
+
+        function showActivateModal() {
+            document.getElementById('activate-modal').classList.remove('hidden');
+            document.getElementById('activation-input').value = '';
+            document.getElementById('activation-msg').classList.add('hidden');
+            document.getElementById('activation-input').focus();
+        }
+
+        function closeActivateModal() {
+            document.getElementById('activate-modal').classList.add('hidden');
+        }
+
+        async function submitActivation() {
+            const code = document.getElementById('activation-input').value.trim();
+            if (!code) { showToast('请输入激活码', 'error'); return; }
+            const btn = document.getElementById('activate-submit-btn');
+            btn.disabled = true;
+            btn.textContent = '验证中...';
+            try {
+                const resp = await fetch('/api/activate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code, fingerprint })
+                });
+                const data = await resp.json();
+                if (data.ok) {
+                    isActivated = true;
+                    localStorage.setItem('vs_activated_' + fingerprint, '1');
+                    updateUsageUI();
+                    closeActivateModal();
+                    showToast('激活成功！已解锁无限使用', 'success');
+                } else {
+                    const msg = document.getElementById('activation-msg');
+                    msg.textContent = data.message || '激活码无效';
+                    msg.className = 'text-xs text-center text-red-500';
+                    msg.classList.remove('hidden');
+                }
+            } catch (e) {
+                showToast('验证失败：' + e.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '激活';
+            }
+        }
+
+        async function checkAndIncrementUsage() {
+            if (isActivated) return true;
+            try {
+                const resp = await fetch('/api/check-usage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fingerprint, usage_count: usageCount })
+                });
+                const data = await resp.json();
+                if (data.activated) {
+                    isActivated = true;
+                    localStorage.setItem('vs_activated_' + fingerprint, '1');
+                    updateUsageUI();
+                    return true;
+                }
+                if (!data.can_use) {
+                    showActivateModal();
+                    return false;
+                }
+                usageCount++;
+                localStorage.setItem('vs_usage_' + fingerprint, usageCount.toString());
+                updateUsageUI();
+                return true;
+            } catch (e) {
+                return true;
+            }
+        }
 
         mermaid.initialize({
             startOnLoad: false,
@@ -405,6 +548,9 @@
             const url = document.getElementById('url-input').value.trim();
             if (currentTab === 'url' && !url) { showToast('请输入视频链接', 'error'); return; }
             if (currentTab === 'file' && !selectedFile) { showToast('请选择文件', 'error'); return; }
+
+            const canUse = await checkAndIncrementUsage();
+            if (!canUse) return;
 
             lastUrl = currentTab === 'url' ? url : '';
             lastFile = currentTab === 'file' ? selectedFile : null;
@@ -708,6 +854,16 @@
                 setDownloadLoading(btnId, false);
             }
         }
+
+        document.getElementById('activate-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeActivateModal();
+        });
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeActivateModal();
+        });
+
+        initUsage();
     </script>
 </body>
 </html>

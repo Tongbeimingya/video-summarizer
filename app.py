@@ -4,6 +4,7 @@ import uuid
 import time
 import sys
 import io
+import hashlib
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 
@@ -30,6 +31,10 @@ tasks = {}
 executor = ThreadPoolExecutor(max_workers=2)
 logger = setup_logger()
 
+ACTIVATION_CODE = "tongbeimingyyya"
+FREE_USAGE_LIMIT = 5
+activation_store = {}
+
 
 def _cleanup_old_tasks():
     """Remove completed tasks older than 1 hour to free memory."""
@@ -48,6 +53,40 @@ def index():
 @app.route("/history")
 def history_page():
     return render_template("history.html")
+
+
+@app.route("/api/activate", methods=["POST"])
+def activate():
+    data = request.get_json() or {}
+    code = data.get("code", "").strip()
+    fingerprint = data.get("fingerprint", "").strip()
+
+    if not fingerprint:
+        return jsonify({"error": "无效请求"}), 400
+
+    if code == ACTIVATION_CODE:
+        activation_store[fingerprint] = {"activated": True, "time": time.time()}
+        return jsonify({"ok": True, "activated": True, "message": "激活成功！已解锁无限使用"})
+
+    return jsonify({"ok": False, "activated": False, "message": "激活码无效"}), 400
+
+
+@app.route("/api/check-usage", methods=["POST"])
+def check_usage():
+    data = request.get_json() or {}
+    fingerprint = data.get("fingerprint", "").strip()
+    usage_count = data.get("usage_count", 0)
+
+    if not fingerprint:
+        return jsonify({"error": "无效请求"}), 400
+
+    if fingerprint in activation_store and activation_store[fingerprint].get("activated"):
+        return jsonify({"activated": True, "remaining": -1, "can_use": True})
+
+    can_use = usage_count < FREE_USAGE_LIMIT
+    remaining = max(0, FREE_USAGE_LIMIT - usage_count)
+
+    return jsonify({"activated": False, "remaining": remaining, "can_use": can_use})
 
 
 @app.route("/api/submit", methods=["POST"])
