@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>视频总结助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8' },
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * { font-family: 'Inter', -apple-system, 'Microsoft YaHei', sans-serif; }
+
+        .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .glass-card { background: rgba(255,255,255,0.72); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6); }
+
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .gradient-text { background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; font-weight: 600; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #9ca3af; }
+        .tab-inactive:hover { color: #6b7280; border-bottom-color: #d1d5db; }
+
+        .progress-bar { transition: width 0.1s linear; }
+        .progress-glow { box-shadow: 0 0 12px rgba(59,130,246,0.4); }
+
+        .fade-in { animation: fadeIn 0.35s cubic-bezier(0.4,0,0.2,1); }
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.4,0,0.2,1); }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+        .markdown-body { font-size: 0.875rem; line-height: 1.75; color: #374151; }
+        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin: 0.8em 0 0.4em; color: #111827; }
+        .markdown-body h2 { font-size: 1.25em; font-weight: 600; margin: 0.8em 0 0.4em; color: #1f2937; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; }
+        .markdown-body h3 { font-size: 1.1em; font-weight: 600; margin: 0.6em 0 0.3em; color: #374151; }
+        .markdown-body p { margin: 0.5em 0; line-height: 1.75; }
+        .markdown-body ul, .markdown-body ol { margin: 0.5em 0; padding-left: 1.5em; }
+        .markdown-body li { margin: 0.25em 0; line-height: 1.65; }
+        .markdown-body strong { color: #1e40af; font-weight: 600; }
+        .markdown-body em { color: #6b7280; }
+        .markdown-body blockquote { border-left: 3px solid #3b82f6; padding: 0.5em 1em; color: #6b7280; margin: 0.6em 0; background: #f8fafc; border-radius: 0 6px 6px 0; }
+        .markdown-body code { background: #f1f5f9; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.88em; color: #e11d48; }
+        .markdown-body pre { background: #1e293b; color: #e2e8f0; padding: 1em; border-radius: 8px; overflow-x: auto; margin: 0.6em 0; }
+        .markdown-body pre code { background: none; color: inherit; padding: 0; }
+        .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+        .markdown-body a { color: #3b82f6; text-decoration: underline; text-underline-offset: 2px; }
+        .markdown-body a:hover { color: #2563eb; }
+        .markdown-body table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 0.5em 0.75em; text-align: left; }
+        .markdown-body th { background: #f8fafc; font-weight: 600; }
+
+        #mindmap-container svg { max-width: 100%; height: auto; }
+
+        .drop-zone-active { border-color: #3b82f6 !important; background: #eff6ff !important; transform: scale(1.01); }
+
+        .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); transition: all 0.2s; }
+        .btn-primary:hover { background: linear-gradient(135deg, #2563eb, #1d4ed8); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-download { transition: all 0.2s; position: relative; overflow: hidden; }
+        .btn-download:hover { transform: translateY(-1px); }
+        .btn-download:active { transform: translateY(0); }
+        .btn-download .spinner { display: none; }
+        .btn-download.loading .spinner { display: inline-block; animation: spin 0.8s linear infinite; }
+        .btn-download.loading .btn-text { display: none; }
+        .btn-download.loading .btn-loading-text { display: inline; }
+        .btn-download .btn-loading-text { display: none; }
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 12px 20px; border-radius: 10px; color: white; font-size: 0.875rem; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.15); animation: toastIn 0.3s ease-out; display: flex; align-items: center; gap: 8px; max-width: 360px; }
+        .toast-success { background: linear-gradient(135deg, #10b981, #059669); }
+        .toast-error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .toast-info { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .toast-exit { animation: toastOut 0.25s ease-in forwards; }
+        @keyframes toastIn { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes toastOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(40px); } }
+
+        .error-section { background: linear-gradient(135deg, #fef2f2, #fff1f2); border: 1px solid #fecaca; }
+        .error-section .error-icon { color: #ef4444; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+        @media (max-width: 640px) {
+            .result-actions { flex-wrap: wrap; }
+            .result-actions button { flex: 1; min-width: calc(50% - 4px); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 min-h-screen">
+    <div class="toast-container" id="toast-container"></div>
+
+    <header class="glass border-b border-white/20 shadow-sm sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold gradient-text">视频总结助手</h1>
+                    <p class="text-[11px] text-gray-400">AI 智能学习笔记生成器</p>
+                </div>
+            </div>
+            <a href="/history" class="px-3 py-1.5 text-sm bg-white/60 hover:bg-white/80 border border-gray-200/60 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span class="text-gray-600">历史记录</span>
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <div id="input-section" class="glass-card rounded-2xl shadow-lg shadow-gray-200/50 p-6 sm:p-8 mb-6 slide-up">
+            <div class="flex gap-1 border-b border-gray-200/80 mb-6">
+                <button id="tab-url" class="pb-3 px-4 text-sm tab-active transition-all" onclick="switchTab('url')">
+                    <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                        在线视频
+                    </span>
+                </button>
+                <button id="tab-file" class="pb-3 px-4 text-sm tab-inactive transition-all" onclick="switchTab('file')">
+                    <span class="flex items-center gap-1.5">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                        本地文件
+                    </span>
+                </button>
+            </div>
+
+            <div id="panel-url" class="space-y-4">
+                <div class="relative">
+                    <input id="url-input" type="text" placeholder="粘贴视频链接（支持 B站、YouTube 等）"
+                        class="w-full pl-4 pr-12 py-3.5 bg-white/80 border border-gray-200 rounded-xl focus:ring-2 focus:ring-brand-400 focus:border-transparent outline-none text-sm placeholder:text-gray-400 transition-all shadow-sm"
+                        onkeydown="if(event.key==='Enter'&&!event.shiftKey)submitTask()">
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    按 Enter 快速提交，支持 Bilibili / YouTube / 抖音等主流平台
+                </p>
+            </div>
+
+            <div id="panel-file" class="hidden space-y-4">
+                <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-xl p-8 sm:p-10 text-center hover:border-brand-400 hover:bg-brand-50/50 transition-all duration-200 cursor-pointer group"
+                    onclick="document.getElementById('file-input').click()">
+                    <input id="file-input" type="file" accept=".mp4,.mov,.mkv,.avi,.wmv,.flv,.webm,.ts,.m4v,.mp3,.wav,.m4a,.ogg,.opus,.flac,.aac,.wma" class="hidden" onchange="onFileSelect(this)">
+                    <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-gray-100 group-hover:bg-brand-100 flex items-center justify-center transition-colors">
+                        <svg class="w-7 h-7 text-gray-400 group-hover:text-brand-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                    </div>
+                    <p id="drop-text" class="text-sm font-medium text-gray-600 mb-1">点击或拖拽文件到此处</p>
+                    <p class="text-xs text-gray-400">支持 mp4, mov, mkv, mp3, wav 等格式，最大 500MB</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-gray-100">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm text-gray-500">粒度</label>
+                    <select id="granularity-select" class="text-sm bg-white/80 border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-400 outline-none transition-all shadow-sm">
+                        <option value="brief">精简</option>
+                        <option value="standard" selected>标准</option>
+                        <option value="detailed">详细</option>
+                    </select>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer group">
+                    <div class="relative">
+                        <input type="checkbox" id="vision-toggle" class="sr-only peer">
+                        <div class="w-9 h-5 bg-gray-200 rounded-full peer peer-checked:bg-brand-500 transition-colors"></div>
+                        <div class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform peer-checked:translate-x-4"></div>
+                    </div>
+                    <span class="text-sm text-gray-500 group-hover:text-gray-700 transition-colors">视觉增强</span>
+                </label>
+            </div>
+
+            <button id="submit-btn" onclick="submitTask()" class="mt-5 w-full btn-primary text-white font-medium py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span id="submit-btn-text">生成总结</span>
+                <kbd class="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium text-blue-200 bg-white/10 rounded">Ctrl+Enter</kbd>
+            </button>
+        </div>
+
+        <div id="progress-section" class="hidden glass-card rounded-2xl shadow-lg shadow-gray-200/50 p-6 sm:p-8 mb-6 fade-in">
+            <div class="flex items-center gap-4 mb-4">
+                <div class="relative">
+                    <div class="animate-spin w-6 h-6 border-[2.5px] border-brand-500 border-t-transparent rounded-full"></div>
+                    <div class="absolute inset-0 w-6 h-6 border-2 border-brand-300 border-t-transparent rounded-full animate-spin" style="animation-duration:1.5s;animation-direction:reverse"></div>
+                </div>
+                <div>
+                    <span id="progress-msg" class="text-sm font-medium text-gray-700">正在处理...</span>
+                    <p id="progress-detail" class="text-xs text-gray-400 mt-0.5"></p>
+                </div>
+            </div>
+            <div class="w-full bg-gray-200/60 rounded-full h-2 overflow-hidden">
+                <div id="progress-bar" class="bg-gradient-to-r from-brand-500 to-purple-500 h-2 rounded-full progress-bar progress-glow" style="width: 0%"></div>
+            </div>
+            <div class="flex justify-between items-center mt-2">
+                <p id="progress-pct" class="text-xs text-gray-400">0%</p>
+                <p id="progress-eta" class="text-xs text-gray-400"></p>
+            </div>
+        </div>
+
+        <div id="error-section" class="hidden error-section rounded-2xl p-6 mb-6 fade-in">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <svg class="w-5 h-5 error-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p id="error-msg" class="text-sm font-medium text-red-800"></p>
+                    <p id="error-hint" class="text-xs text-red-500/70 mt-1"></p>
+                </div>
+                <button onclick="retryTask()" class="px-3 py-1.5 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition font-medium flex-shrink-0">
+                    重试
+                </button>
+            </div>
+        </div>
+
+        <div id="result-section" class="hidden slide-up">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+                <h2 id="result-title" class="text-lg font-bold text-gray-800 truncate"></h2>
+                <div class="result-actions flex gap-2 flex-wrap">
+                    <button onclick="copyMarkdown()" id="btn-copy" class="btn-download px-3 py-1.5 text-xs bg-white/80 hover:bg-white border border-gray-200/60 text-gray-600 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                        <span class="btn-text">复制</span>
+                        <span class="btn-loading-text">已复制</span>
+                    </button>
+                    <button onclick="downloadMarkdown()" id="btn-download-md" class="btn-download px-3 py-1.5 text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/60 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        <span class="btn-text">下载 .md</span>
+                        <span class="btn-loading-text">下载中...</span>
+                        <svg class="spinner w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                    <button onclick="downloadMindmapPng()" id="btn-download-png" class="btn-download px-3 py-1.5 text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <span class="btn-text">思维导图</span>
+                        <span class="btn-loading-text">导出中...</span>
+                        <svg class="spinner w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                    <button onclick="downloadSummaryPdf()" id="btn-download-pdf" class="btn-download px-3 py-1.5 text-xs bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200/60 rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                        <span class="btn-text">下载 PDF</span>
+                        <span class="btn-loading-text">导出中...</span>
+                        <svg class="spinner w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div class="glass-card rounded-2xl shadow-sm p-6">
+                    <h3 class="text-sm font-semibold text-gray-500 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <div class="w-6 h-6 rounded-md bg-brand-100 flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                        </div>
+                        学习笔记
+                    </h3>
+                    <div id="summary-content" class="markdown-body max-h-[70vh] overflow-y-auto pr-1"></div>
+                </div>
+                <div class="glass-card rounded-2xl shadow-sm p-6">
+                    <h3 class="text-sm font-semibold text-gray-500 mb-4 flex items-center gap-2 uppercase tracking-wide">
+                        <div class="w-6 h-6 rounded-md bg-purple-100 flex items-center justify-center">
+                            <svg class="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>
+                        </div>
+                        知识结构图
+                    </h3>
+                    <div id="mindmap-container" class="overflow-auto max-h-[70vh] rounded-lg bg-white/50 p-2"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center py-6 text-xs text-gray-400">
+        <p>Video Summarizer &mdash; Powered by AI</p>
+    </footer>
+
+    <script>
+        let currentTab = 'url';
+        let selectedFile = null;
+        let currentTaskId = null;
+        let pollTimer = null;
+        let mermaidIdCounter = 0;
+        let lastUrl = '';
+        let lastFile = null;
+        let smoothProgress = 0;
+        let smoothRaf = null;
+        let lastServerProgress = 0;
+
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis',
+                rankSpacing: 50,
+                nodeSpacing: 30,
+            },
+            themeVariables: {
+                primaryColor: '#eff6ff',
+                primaryTextColor: '#1e40af',
+                primaryBorderColor: '#3b82f6',
+                lineColor: '#94a3b8',
+                fontSize: '14px',
+            }
+        });
+
+        function smoothProgressTo(target) {
+            lastServerProgress = target;
+            if (smoothRaf) cancelAnimationFrame(smoothRaf);
+            function step() {
+                const diff = lastServerProgress - smoothProgress;
+                if (Math.abs(diff) < 0.3) {
+                    smoothProgress = lastServerProgress;
+                    updateProgressBar(smoothProgress);
+                    return;
+                }
+                smoothProgress += diff * 0.08;
+                updateProgressBar(smoothProgress);
+                smoothRaf = requestAnimationFrame(step);
+            }
+            step();
+        }
+
+        function updateProgressBar(pct) {
+            const p = Math.min(100, Math.max(0, Math.round(pct)));
+            document.getElementById('progress-bar').style.width = p + '%';
+            document.getElementById('progress-pct').textContent = p + '%';
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            const icons = {
+                success: '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+                error: '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+                info: '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>',
+            };
+            toast.innerHTML = (icons[type] || icons.info) + '<span>' + msg + '</span>';
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-url').className = tab === 'url' ? 'pb-3 px-4 text-sm tab-active transition-all' : 'pb-3 px-4 text-sm tab-inactive transition-all';
+            document.getElementById('tab-file').className = tab === 'file' ? 'pb-3 px-4 text-sm tab-active transition-all' : 'pb-3 px-4 text-sm tab-inactive transition-all';
+            document.getElementById('panel-url').className = tab === 'url' ? 'space-y-4' : 'hidden space-y-4';
+            document.getElementById('panel-file').className = tab === 'file' ? 'space-y-4' : 'hidden space-y-4';
+        }
+
+        function onFileSelect(input) {
+            if (input.files.length > 0) {
+                selectedFile = input.files[0];
+                document.getElementById('drop-text').textContent = selectedFile.name + ' (' + formatSize(selectedFile.size) + ')';
+                document.getElementById('drop-zone').classList.add('drop-zone-active');
+            }
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / 1048576).toFixed(1) + ' MB';
+        }
+
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drop-zone-active'); });
+        dropZone.addEventListener('dragleave', e => { if (!dropZone.contains(e.relatedTarget)) dropZone.classList.remove('drop-zone-active'); });
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('drop-zone-active');
+            if (e.dataTransfer.files.length > 0) {
+                selectedFile = e.dataTransfer.files[0];
+                document.getElementById('drop-text').textContent = selectedFile.name + ' (' + formatSize(selectedFile.size) + ')';
+                dropZone.classList.add('drop-zone-active');
+            }
+        });
+
+        document.addEventListener('keydown', e => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                submitTask();
+            }
+        });
+
+        async function submitTask() {
+            const url = document.getElementById('url-input').value.trim();
+            if (currentTab === 'url' && !url) { showToast('请输入视频链接', 'error'); return; }
+            if (currentTab === 'file' && !selectedFile) { showToast('请选择文件', 'error'); return; }
+
+            lastUrl = currentTab === 'url' ? url : '';
+            lastFile = currentTab === 'file' ? selectedFile : null;
+
+            hideAll();
+            document.getElementById('progress-section').classList.remove('hidden');
+            document.getElementById('progress-msg').textContent = '正在初始化...';
+            smoothProgress = 0;
+            lastServerProgress = 0;
+            updateProgressBar(0);
+            document.getElementById('progress-eta').textContent = '';
+            setSubmitLoading(true);
+
+            const formData = new FormData();
+            if (currentTab === 'url') {
+                formData.append('url', url);
+            } else {
+                formData.append('file', selectedFile);
+            }
+            formData.append('vision', document.getElementById('vision-toggle').checked);
+            formData.append('granularity', document.getElementById('granularity-select').value);
+
+            try {
+                const resp = await fetch('/api/submit', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (resp.ok) {
+                    currentTaskId = data.task_id;
+                    pollProgress();
+                } else {
+                    showError(data.error || '提交失败');
+                }
+            } catch (e) {
+                showError('网络错误：' + e.message);
+            }
+        }
+
+        function retryTask() {
+            hideAll();
+        }
+
+        function setSubmitLoading(loading) {
+            const btn = document.getElementById('submit-btn');
+            const text = document.getElementById('submit-btn-text');
+            btn.disabled = loading;
+            if (loading) {
+                btn.classList.add('opacity-70', 'cursor-not-allowed');
+                text.textContent = '处理中...';
+            } else {
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+                text.textContent = '生成总结';
+            }
+        }
+
+        function pollProgress() {
+            if (pollTimer) clearInterval(pollTimer);
+            smoothProgress = 0;
+            lastServerProgress = 0;
+            updateProgressBar(0);
+            const startTime = Date.now();
+
+            pollTimer = setInterval(async () => {
+                try {
+                    const resp = await fetch('/api/progress/' + currentTaskId);
+                    const data = await resp.json();
+                    document.getElementById('progress-msg').textContent = data.message || '正在处理...';
+
+                    smoothProgressTo(data.progress);
+
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    if (data.progress > 5 && data.progress < 100) {
+                        const eta = Math.ceil((elapsed / data.progress) * (100 - data.progress));
+                        document.getElementById('progress-eta').textContent = '预计剩余 ' + eta + 's';
+                    }
+
+                    if (data.status === 'done') {
+                        clearInterval(pollTimer);
+                        if (smoothRaf) cancelAnimationFrame(smoothRaf);
+                        smoothProgressTo(100);
+                        document.getElementById('progress-eta').textContent = '';
+                        setTimeout(() => loadResult(), 300);
+                    } else if (data.status === 'error') {
+                        clearInterval(pollTimer);
+                        if (smoothRaf) cancelAnimationFrame(smoothRaf);
+                        showError(data.error || '处理失败');
+                    }
+                } catch (e) { /* retry */ }
+            }, 600);
+        }
+
+        async function loadResult() {
+            try {
+                const resp = await fetch('/api/result/' + currentTaskId);
+                const data = await resp.json();
+                document.getElementById('result-title').textContent = data.title;
+                document.getElementById('summary-content').innerHTML = marked.parse(data.summary);
+                if (data.mindmap) {
+                    await renderMindmap(data.mindmap);
+                }
+                hideAll();
+                document.getElementById('result-section').classList.remove('hidden');
+                showToast('总结生成完成', 'success');
+            } catch (e) {
+                showError('加载结果失败：' + e.message);
+            }
+            setSubmitLoading(false);
+        }
+
+        async function renderMindmap(code) {
+            const container = document.getElementById('mindmap-container');
+            mermaidIdCounter++;
+            const id = 'mindmap-svg-' + mermaidIdCounter;
+
+            try {
+                const { svg } = await mermaid.render(id, code);
+                container.innerHTML = svg;
+                return;
+            } catch (me) {
+                console.warn('Mermaid render failed, attempting fix...', me);
+            }
+
+            const fixed = fixMindmapCode(code);
+            if (fixed !== code) {
+                mermaidIdCounter++;
+                const id2 = 'mindmap-svg-' + mermaidIdCounter;
+                try {
+                    const { svg } = await mermaid.render(id2, fixed);
+                    container.innerHTML = svg;
+                    return;
+                } catch (me2) {
+                    console.warn('Fixed mermaid still failed', me2);
+                }
+            }
+
+            const fallback = buildFallbackMindmap(code);
+            mermaidIdCounter++;
+            const id3 = 'mindmap-svg-' + mermaidIdCounter;
+            try {
+                const { svg } = await mermaid.render(id3, fallback);
+                container.innerHTML = svg;
+            } catch (me3) {
+                container.innerHTML = '<p class="text-gray-400 text-sm text-center py-4">思维导图预览不可用，可下载 .md 文件查看</p>';
+            }
+        }
+
+        function fixMindmapCode(code) {
+            let lines = code.split('\n');
+            if (!lines[0].trim().startsWith('mindmap')) {
+                lines = ['mindmap', ...lines];
+            }
+            const seen = new Set();
+            const fixed = [lines[0]];
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                const indent = line.match(/^(\s*)/)[1];
+                let content = line.trim();
+                if (!content || content === 'mindmap') continue;
+
+                content = content
+                    .replace(/[\(\)]/g, m => m === '(' ? '（' : '）')
+                    .replace(/[\[\]]/g, m => m === '[' ? '【' : '】')
+                    .replace(/[{}]/g, m => m === '{' ? '｛' : '｝')
+                    .replace(/[<>]/g, m => m === '<' ? '＜' : '＞')
+                    .replace(/["']/g, '')
+                    .replace(/[""]/g, '')
+                    .replace(/[""]/g, '')
+                    .replace(/[|\\\/~`@#$%^&+=]/g, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+
+                if (!content || content.length < 2) continue;
+                if (/^[\d\s.,:;]+$/.test(content)) continue;
+
+                if (content.length > 55) {
+                    content = content.substring(0, 52) + '...';
+                }
+                if (seen.has(content)) {
+                    content = content + ' ';
+                }
+                seen.add(content);
+                fixed.push(indent + content);
+            }
+            if (fixed.length < 3) {
+                return 'mindmap\n  root((视频总结))\n    核心要点\n    详细内容';
+            }
+            return fixed.join('\n');
+        }
+
+        function buildFallbackMindmap(code) {
+            const lines = code.split('\n');
+            const headings = [];
+            for (const line of lines) {
+                const m = line.trim().match(/^(?:root\(\()?(.+?)(?:\)\))?$/);
+                if (m && m[1] && m[1] !== 'mindmap') {
+                    headings.push(m[1]);
+                }
+            }
+            if (headings.length === 0) return 'mindmap\n  root((视频总结))\n    核心要点\n    详细内容';
+            let result = 'mindmap\n  root((' + headings[0] + '))';
+            for (let i = 1; i < Math.min(headings.length, 8); i++) {
+                result += '\n    ' + headings[i];
+            }
+            return result;
+        }
+
+        function hideAll() {
+            document.getElementById('progress-section').classList.add('hidden');
+            document.getElementById('error-section').classList.add('hidden');
+            document.getElementById('result-section').classList.add('hidden');
+        }
+
+        function showError(msg) {
+            hideAll();
+            document.getElementById('error-msg').textContent = msg;
+            document.getElementById('error-section').classList.remove('hidden');
+            setSubmitLoading(false);
+        }
+
+        function setDownloadLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            if (loading) { btn.classList.add('loading'); btn.disabled = true; }
+            else { btn.classList.remove('loading'); btn.disabled = false; }
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+
+        async function copyMarkdown() {
+            try {
+                const resp = await fetch('/api/result/' + currentTaskId);
+                const data = await resp.json();
+                await navigator.clipboard.writeText(data.markdown);
+                showToast('已复制到剪贴板', 'success');
+            } catch (e) {
+                showToast('复制失败', 'error');
+            }
+        }
+
+        async function downloadMarkdown() {
+            const btnId = 'btn-download-md';
+            setDownloadLoading(btnId, true);
+            try {
+                const resp = await fetch('/api/download/' + currentTaskId);
+                const data = await resp.json();
+                if (data.error) throw new Error(data.error);
+                const blob = new Blob([data.content], { type: 'text/markdown' });
+                triggerDownload(blob, data.filename);
+                showToast('Markdown 已下载', 'success');
+            } catch (e) {
+                showToast('下载失败: ' + e.message, 'error');
+            } finally {
+                setDownloadLoading(btnId, false);
+            }
+        }
+
+        async function downloadMindmapPng() {
+            const btnId = 'btn-download-png';
+            setDownloadLoading(btnId, true);
+            try {
+                const resp = await fetch('/api/mindmap-png/' + currentTaskId);
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || '导出失败');
+                }
+                const blob = await resp.blob();
+                const cd = resp.headers.get('content-disposition');
+                const filename = cd ? cd.split('filename=')[1]?.replace(/"/g, '') || 'mindmap.png' : 'mindmap.png';
+                triggerDownload(blob, filename);
+                showToast('思维导图 PNG 已下载', 'success');
+            } catch (e) {
+                showToast('PNG 导出失败: ' + e.message, 'error');
+            } finally {
+                setDownloadLoading(btnId, false);
+            }
+        }
+
+        async function downloadSummaryPdf() {
+            const btnId = 'btn-download-pdf';
+            setDownloadLoading(btnId, true);
+            try {
+                const resp = await fetch('/api/summary-pdf/' + currentTaskId);
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.error || '导出失败');
+                }
+                const blob = await resp.blob();
+                const cd = resp.headers.get('content-disposition');
+                const filename = cd ? cd.split('filename=')[1]?.replace(/"/g, '') || 'summary.pdf' : 'summary.pdf';
+                triggerDownload(blob, filename);
+                showToast('PDF 文件已下载', 'success');
+            } catch (e) {
+                showToast('PDF 导出失败: ' + e.message, 'error');
+            } finally {
+                setDownloadLoading(btnId, false);
+            }
+        }
+    </script>
+</body>
+</html>

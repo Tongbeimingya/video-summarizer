@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史记录 - 视频总结助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',300:'#93c5fd',400:'#60a5fa',500:'#3b82f6',600:'#2563eb',700:'#1d4ed8' },
+                    }
+                }
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        * { font-family: 'Inter', -apple-system, 'Microsoft YaHei', sans-serif; }
+
+        .glass { background: rgba(255,255,255,0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .glass-card { background: rgba(255,255,255,0.72); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6); }
+
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .gradient-text { background: linear-gradient(135deg, #3b82f6, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+
+        .fade-in { animation: fadeIn 0.35s cubic-bezier(0.4,0,0.2,1); }
+        .slide-up { animation: slideUp 0.4s cubic-bezier(0.4,0,0.2,1); }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+
+        .markdown-body { font-size: 0.875rem; line-height: 1.75; color: #374151; }
+        .markdown-body h1 { font-size: 1.5em; font-weight: 700; margin: 0.8em 0 0.4em; color: #111827; }
+        .markdown-body h2 { font-size: 1.25em; font-weight: 600; margin: 0.8em 0 0.4em; color: #1f2937; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; }
+        .markdown-body h3 { font-size: 1.1em; font-weight: 600; margin: 0.6em 0 0.3em; color: #374151; }
+        .markdown-body p { margin: 0.5em 0; line-height: 1.75; }
+        .markdown-body ul, .markdown-body ol { margin: 0.5em 0; padding-left: 1.5em; }
+        .markdown-body li { margin: 0.25em 0; line-height: 1.65; }
+        .markdown-body strong { color: #1e40af; font-weight: 600; }
+        .markdown-body em { color: #6b7280; }
+        .markdown-body blockquote { border-left: 3px solid #3b82f6; padding: 0.5em 1em; color: #6b7280; margin: 0.6em 0; background: #f8fafc; border-radius: 0 6px 6px 0; }
+        .markdown-body code { background: #f1f5f9; padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.88em; color: #e11d48; }
+        .markdown-body pre { background: #1e293b; color: #e2e8f0; padding: 1em; border-radius: 8px; overflow-x: auto; margin: 0.6em 0; }
+        .markdown-body pre code { background: none; color: inherit; padding: 0; }
+        .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+        .markdown-body a { color: #3b82f6; text-decoration: underline; text-underline-offset: 2px; }
+        .markdown-body a:hover { color: #2563eb; }
+        .markdown-body table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 0.5em 0.75em; text-align: left; }
+        .markdown-body th { background: #f8fafc; font-weight: 600; }
+
+        .record-card { transition: all 0.2s; }
+        .record-card:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+
+        .toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+        .toast { padding: 12px 20px; border-radius: 10px; color: white; font-size: 0.875rem; font-weight: 500; box-shadow: 0 8px 24px rgba(0,0,0,0.15); animation: toastIn 0.3s ease-out; display: flex; align-items: center; gap: 8px; max-width: 360px; }
+        .toast-success { background: linear-gradient(135deg, #10b981, #059669); }
+        .toast-error { background: linear-gradient(135deg, #ef4444, #dc2626); }
+        .toast-exit { animation: toastOut 0.25s ease-in forwards; }
+        @keyframes toastIn { from { opacity:0; transform:translateX(40px); } to { opacity:1; transform:translateX(0); } }
+        @keyframes toastOut { from { opacity:1; transform:translateX(0); } to { opacity:0; transform:translateX(40px); } }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 min-h-screen">
+    <div class="toast-container" id="toast-container"></div>
+
+    <header class="glass border-b border-white/20 shadow-sm sticky top-0 z-40">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-lg font-bold gradient-text">历史记录</h1>
+                    <p class="text-[11px] text-gray-400">所有已处理的视频</p>
+                </div>
+            </div>
+            <a href="/" class="px-3 py-1.5 text-sm btn-primary text-white rounded-lg flex items-center gap-1.5 transition-all hover:shadow-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                新建总结
+            </a>
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+        <div id="loading" class="text-center py-12 text-gray-500 flex flex-col items-center gap-3">
+            <div class="animate-spin w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full"></div>
+            <span class="text-sm">加载中...</span>
+        </div>
+
+        <div id="empty-state" class="hidden text-center py-16 slide-up">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center">
+                <svg class="w-10 h-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+            </div>
+            <p class="text-gray-500 font-medium">暂无历史记录</p>
+            <p class="text-gray-400 text-sm mt-1">开始你的第一个视频总结吧</p>
+            <a href="/" class="mt-5 inline-flex items-center gap-2 px-5 py-2.5 btn-primary text-white rounded-xl transition-all hover:shadow-lg hover:shadow-blue-500/20">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                创建第一个总结
+            </a>
+        </div>
+
+        <div id="records-list" class="hidden space-y-3"></div>
+
+        <div id="pagination" class="hidden flex justify-center gap-2 mt-8"></div>
+
+        <div id="detail-modal" class="hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div class="glass-card rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden flex flex-col slide-up">
+                <div class="flex items-center justify-between p-5 border-b border-gray-100">
+                    <h3 id="detail-title" class="text-lg font-bold text-gray-800 truncate flex-1"></h3>
+                    <button onclick="closeModal()" class="ml-4 p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div id="detail-content" class="flex-1 overflow-y-auto p-6 markdown-body"></div>
+                <div class="flex items-center justify-between p-4 border-t border-gray-100 bg-gray-50/50">
+                    <div id="detail-meta" class="text-xs text-gray-500"></div>
+                    <div class="flex gap-2">
+                        <button id="detail-link-btn" class="hidden px-3 py-1.5 text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200/60 rounded-lg transition-all">打开视频</button>
+                        <button id="detail-delete-btn" class="px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-700 border border-red-200/60 rounded-lg transition-all">删除</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let currentPage = 1;
+        let currentRecordId = null;
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            const icons = {
+                success: '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>',
+                error: '<svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>',
+            };
+            toast.innerHTML = (icons[type] || '') + '<span>' + msg + '</span>';
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('toast-exit');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        async function loadRecords(page = 1) {
+            currentPage = page;
+            try {
+                const resp = await fetch('/api/history?page=' + page + '&per_page=20');
+                const data = await resp.json();
+                document.getElementById('loading').classList.add('hidden');
+
+                if (data.records.length === 0 && page === 1) {
+                    document.getElementById('empty-state').classList.remove('hidden');
+                    return;
+                }
+
+                const list = document.getElementById('records-list');
+                list.innerHTML = '';
+                for (const r of data.records) {
+                    const sourceLabel = r.source_type === 'web' ? '网页' : r.source_type === 'local_file' ? '本地' : r.source_type || '未知';
+                    const granLabel = r.summary_granularity === 'brief' ? '精简' : r.summary_granularity === 'detailed' ? '详细' : '标准';
+                    list.innerHTML += `
+                        <div class="glass-card record-card rounded-xl p-4 sm:p-5 cursor-pointer fade-in" onclick="openDetail(${r.id})">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="text-sm font-semibold text-gray-800 truncate">${escapeHtml(r.title)}</h3>
+                                    <div class="flex flex-wrap items-center gap-2 mt-1.5">
+                                        <span class="text-xs text-gray-400">${r.created_at_str}</span>
+                                        <span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-[11px] font-medium">${sourceLabel}</span>
+                                        <span class="px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-[11px] font-medium">${granLabel}</span>
+                                        ${r.url ? '<span class="px-2 py-0.5 bg-brand-50 text-brand-600 rounded-full text-[11px] font-medium">有链接</span>' : ''}
+                                        ${r.vision_enabled ? '<span class="px-2 py-0.5 bg-purple-50 text-purple-600 rounded-full text-[11px] font-medium">视觉增强</span>' : ''}
+                                    </div>
+                                </div>
+                                <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                            </div>
+                        </div>`;
+                }
+                list.classList.remove('hidden');
+
+                const pag = document.getElementById('pagination');
+                pag.innerHTML = '';
+                if (data.pages > 1) {
+                    for (let p = 1; p <= data.pages; p++) {
+                        const btn = document.createElement('button');
+                        btn.textContent = p;
+                        btn.className = 'px-3 py-1.5 text-sm rounded-lg transition-all ' + (p === currentPage ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20' : 'bg-white/60 hover:bg-white/80 text-gray-600 border border-gray-200/60');
+                        btn.onclick = () => loadRecords(p);
+                        pag.appendChild(btn);
+                    }
+                    pag.classList.remove('hidden');
+                }
+            } catch (e) {
+                document.getElementById('loading').innerHTML = '<span class="text-red-500">加载失败</span>';
+            }
+        }
+
+        async function openDetail(id) {
+            currentRecordId = id;
+            try {
+                const resp = await fetch('/api/history/' + id);
+                const data = await resp.json();
+                document.getElementById('detail-title').textContent = data.title;
+                document.getElementById('detail-content').innerHTML = data.markdown ? marked.parse(data.markdown) : '<p class="text-gray-500">暂无内容</p>';
+
+                const linkBtn = document.getElementById('detail-link-btn');
+                if (data.url) {
+                    linkBtn.classList.remove('hidden');
+                    linkBtn.onclick = () => window.open(data.url, '_blank');
+                } else {
+                    linkBtn.classList.add('hidden');
+                }
+
+                const sourceLabel = data.source_type === 'web' ? '网页' : data.source_type === 'local_file' ? '本地' : data.source_type || '未知';
+                document.getElementById('detail-meta').textContent =
+                    data.created_at_str + ' | ' + sourceLabel + ' | ' + (data.char_count || 0) + ' 字符';
+
+                document.getElementById('detail-delete-btn').onclick = () => deleteRecord(id);
+                document.getElementById('detail-modal').classList.remove('hidden');
+            } catch (e) {
+                showToast('加载失败', 'error');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').classList.add('hidden');
+            currentRecordId = null;
+        }
+
+        async function deleteRecord(id) {
+            if (!confirm('确定删除此记录？')) return;
+            try {
+                await fetch('/api/history/' + id, { method: 'DELETE' });
+                closeModal();
+                showToast('已删除', 'success');
+                loadRecords(currentPage);
+            } catch (e) {
+                showToast('删除失败', 'error');
+            }
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        document.getElementById('detail-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        loadRecords();
+    </script>
+</body>
+</html>
