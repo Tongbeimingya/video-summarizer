@@ -414,7 +414,7 @@
             }
         }
 
-        async function checkAndIncrementUsage() {
+        async function checkUsage() {
             if (isActivated) return true;
             try {
                 const resp = await fetch('/api/check-usage', {
@@ -433,13 +433,17 @@
                     showActivateModal();
                     return false;
                 }
-                usageCount++;
-                localStorage.setItem('vs_usage_' + fingerprint, usageCount.toString());
-                updateUsageUI();
                 return true;
             } catch (e) {
                 return true;
             }
+        }
+
+        function incrementUsage() {
+            if (isActivated) return;
+            usageCount++;
+            localStorage.setItem('vs_usage_' + fingerprint, usageCount.toString());
+            updateUsageUI();
         }
 
         mermaid.initialize({
@@ -549,7 +553,7 @@
             if (currentTab === 'url' && !url) { showToast('请输入视频链接', 'error'); return; }
             if (currentTab === 'file' && !selectedFile) { showToast('请选择文件', 'error'); return; }
 
-            const canUse = await checkAndIncrementUsage();
+            const canUse = await checkUsage();
             if (!canUse) return;
 
             lastUrl = currentTab === 'url' ? url : '';
@@ -651,6 +655,7 @@
                 }
                 hideAll();
                 document.getElementById('result-section').classList.remove('hidden');
+                incrementUsage();
                 showToast('总结生成完成', 'success');
             } catch (e) {
                 showError('加载结果失败：' + e.message);
