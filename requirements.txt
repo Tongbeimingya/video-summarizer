@@ -6,4 +6,3 @@ faster-whisper>=1.0.0
 imageio-ffmpeg>=0.4.0
 flask>=3.0.0
 markdown>=3.5
-weasyprint>=60.0

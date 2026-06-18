@@ -47,19 +47,22 @@ body {{ margin:0; padding:20px; background:white; display:flex; justify-content:
 
 
 def export_summary_pdf(markdown_text, output_path):
-    """Export summary as PDF using weasyprint."""
+    """Export summary as PDF. Tries weasyprint, falls back to HTML."""
     try:
         from weasyprint import HTML
         html_content = _markdown_to_html(markdown_text)
         HTML(string=html_content).write_pdf(output_path)
         return True
-    except ImportError:
-        raise RuntimeError(
-            "PDF export requires weasyprint.\n"
-            "Install: pip install weasyprint"
-        )
-    except Exception as e:
-        raise RuntimeError(f"PDF export failed: {e}")
+    except (ImportError, Exception):
+        pass
+
+    html_content = _markdown_to_html(markdown_text)
+    with open(output_path.replace('.pdf', '.html'), 'w', encoding='utf-8') as f:
+        f.write(html_content)
+    raise RuntimeError(
+        "PDF export requires weasyprint.\n"
+        "HTML version has been saved. You can print it as PDF from your browser."
+    )
 
 
 def _markdown_to_html(md_text):
@@ -71,6 +74,7 @@ def _markdown_to_html(md_text):
 
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8">
+<title>视频总结</title>
 <style>
 body {{ font-family: -apple-system, "Microsoft YaHei", "Noto Sans SC", sans-serif; max-width:800px;
         margin:0 auto; padding:20px; line-height:1.8; color:#333; font-size:14px; }}

@@ -840,23 +840,32 @@
         }
 
         async function downloadSummaryPdf() {
-            const btnId = 'btn-download-pdf';
-            setDownloadLoading(btnId, true);
             try {
-                const resp = await fetch('/api/summary-pdf/' + currentTaskId);
-                if (!resp.ok) {
-                    const err = await resp.json().catch(() => ({}));
-                    throw new Error(err.error || '导出失败');
-                }
-                const blob = await resp.blob();
-                const cd = resp.headers.get('content-disposition');
-                const filename = cd ? cd.split('filename=')[1]?.replace(/"/g, '') || 'summary.pdf' : 'summary.pdf';
-                triggerDownload(blob, filename);
-                showToast('PDF 文件已下载', 'success');
+                const resp = await fetch('/api/result/' + currentTaskId);
+                const data = await resp.json();
+                const html = marked.parse(data.markdown || data.summary);
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>${data.title || '视频总结'}</title>
+<style>
+body { font-family: -apple-system, "Microsoft YaHei", sans-serif; max-width:800px; margin:0 auto; padding:20px; line-height:1.8; color:#333; font-size:14px; }
+h1 { font-size:1.8em; border-bottom:2px solid #3b82f6; padding-bottom:8px; }
+h2 { font-size:1.4em; color:#1e40af; margin-top:1.5em; }
+h3 { font-size:1.15em; color:#374151; }
+blockquote { border-left:3px solid #3b82f6; padding-left:12px; color:#6b7280; margin:12px 0; background:#f8fafc; padding:8px 12px; }
+code { background:#f1f5f9; padding:2px 6px; border-radius:4px; }
+pre { background:#1e293b; color:#e2e8f0; padding:12px; border-radius:8px; overflow-x:auto; }
+strong { color:#1e40af; }
+table { border-collapse:collapse; width:100%; margin:12px 0; }
+th, td { border:1px solid #e5e7eb; padding:8px 12px; text-align:left; }
+th { background:#f8fafc; }
+@media print { body { padding:0; } }
+</style></head><body>${html}</body></html>`);
+                printWindow.document.close();
+                setTimeout(() => { printWindow.print(); }, 500);
+                showToast('请在弹出窗口中选择"另存为 PDF"', 'info');
             } catch (e) {
                 showToast('PDF 导出失败: ' + e.message, 'error');
-            } finally {
-                setDownloadLoading(btnId, false);
             }
         }
 
