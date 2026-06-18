@@ -9,7 +9,7 @@ def load_config():
     if hf_mirror:
         os.environ["HF_ENDPOINT"] = hf_mirror
 
-    api_key = os.getenv("DEEPSEEK_API_KEY")
+    api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("deepseek_api")
     base_url = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
     model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
     whisper_model = os.getenv("WHISPER_MODEL", "tiny")

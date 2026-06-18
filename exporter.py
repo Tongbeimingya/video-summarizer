@@ -17,7 +17,7 @@ def export_markdown(title, summary_text, url=""):
 
 def _parse_heading_tree(summary_text):
     """Parse markdown headings into a nested tree structure.
-    Returns: [(level, text), ...] preserving order and nesting."""
+    Returns list of (level, text) tuples."""
     lines = summary_text.split("\n")
     tree = []
     for line in lines:
@@ -26,46 +26,50 @@ def _parse_heading_tree(summary_text):
             level = len(m.group(1))
             text = m.group(2).strip()
             text = re.sub(r"\*+", "", text)
+            text = re.sub(r"`([^`]+)`", r"\1", text)
             tree.append((level, text))
     return tree
 
 
 def _build_mermaid_mindmap(tree, root_label):
-    """Build a mermaid mindmap diagram with proper multi-level hierarchy."""
+    """Build a mermaid mindmap with proper multi-level hierarchy.
+    
+    Mermaid mindmap indentation rules:
+    - root((...)) at indent 2
+    - Level 1 children (##) at indent 4
+    - Level 2 children (###) at indent 6
+    - Level 3 children (####) at indent 8
+    """
     if not tree:
         tree = [(2, "核心内容")]
 
     lines = ["mindmap"]
-    root_id = _sanitize(root_label)
-    lines.append(f"  root(({_mermaid_safe(root_id)}))")
-
-    stack = []
+    root_text = _mermaid_safe(root_label)
+    lines.append(f"  root(({root_text}))")
 
     for level, text in tree:
         cleaned = _sanitize(text)
-        if not cleaned:
+        if not cleaned or len(cleaned) < 2:
             continue
 
         node_text = _mermaid_safe(cleaned)
-        indent = "  " * (level + 1)
 
-        if level == 2:
-            stack = [(2, node_text)]
-            lines.append(f"{indent}{node_text}")
-        elif level == 3:
-            stack = [(2, node_text)]
-            lines.append(f"{indent}{node_text}")
-        elif level >= 4:
-            lines.append(f"{indent}{node_text}")
+        indent = "  " * level
+
+        lines.append(f"{indent}{node_text}")
 
     return "\n".join(lines)
 
 
 def _build_mindmap_section(summary_text):
     tree = _parse_heading_tree(summary_text)
-    first_heading = tree[0][1] if tree else "视频内容"
+    if not tree:
+        tree = [(2, "视频内容")]
 
-    mermaid_code = _build_mermaid_mindmap(tree, first_heading)
+    root_heading = tree[0][1]
+    child_headings = tree[1:]
+
+    mermaid_code = _build_mermaid_mindmap(child_headings, root_heading)
     mermaid_code = validate_and_fix_mindmap(mermaid_code)
 
     return (
@@ -90,25 +94,24 @@ def _mermaid_safe(text):
     text = text.replace("\u3001", " ").replace("\u3002", " ")
     text = text.replace("\uff0c", " ").replace("\uff1a", " ").replace("\uff1b", " ")
     text = text.replace("\uff01", " ").replace("\uff1f", " ")
-    text = re.sub(r"[\[\]{}|<>:;!,.?/\\~`@#$%^&+=]", "", text)
+    text = text.replace("\\", "")
+    text = re.sub(r"[\[\]{}|<>:;!,.?/~`@#$%^&+=]", "", text)
     text = re.sub(r"\s+", " ", text)
     text = text.strip()
     if not text:
         text = "内容"
-    if len(text) > 40:
-        text = text[:40].rsplit(" ", 1)[0] if " " in text else text[:40]
+    if len(text) > 35:
+        text = text[:35]
     return text
 
 
 def _sanitize(text):
     text = text.strip()
     text = re.sub(r"\*+", "", text)
-    text = text.replace('"', "")
-    text = text.replace("'", "")
-    text = text.replace("\u201c", "")
-    text = text.replace("\u201d", "")
-    text = text.replace("\u2018", "")
-    text = text.replace("\u2019", "")
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    text = text.replace('"', "").replace("'", "")
+    text = text.replace("\u201c", "").replace("\u201d", "")
+    text = text.replace("\u2018", "").replace("\u2019", "")
     text = text.replace("\\", "")
     text = text.replace("\u2014", "-")
     text = text.replace("\u2013", "-")
@@ -159,6 +162,7 @@ def validate_and_fix_mindmap(code):
         return _fallback_mindmap()
 
     lines = code.strip().split("\n")
+
     if not lines[0].strip().startswith("mindmap"):
         code = "mindmap\n" + code
         lines = ["mindmap"] + lines
@@ -185,7 +189,7 @@ def validate_and_fix_mindmap(code):
             continue
 
         content = _fix_mermaid_content(content)
-        if not content or len(content) < 1:
+        if not content or len(content) < 2:
             continue
 
         if content in seen_labels:
@@ -193,8 +197,8 @@ def validate_and_fix_mindmap(code):
             content = content + str(node_counter[0])
         seen_labels.add(content)
 
-        if len(content) > 60:
-            content = content[:57] + "..."
+        if len(content) > 50:
+            content = content[:47] + "..."
 
         fixed_lines.append(indent + content)
 
@@ -247,9 +251,13 @@ def _fallback_mindmap():
 
 def get_mindmap_code(summary_text):
     tree = _parse_heading_tree(summary_text)
-    first_heading = tree[0][1] if tree else "视频内容"
+    if not tree:
+        tree = [(2, "视频内容")]
 
-    mermaid_code = _build_mermaid_mindmap(tree, first_heading)
+    root_heading = tree[0][1]
+    child_headings = tree[1:]
+
+    mermaid_code = _build_mermaid_mindmap(child_headings, root_heading)
     mermaid_code = validate_and_fix_mindmap(mermaid_code)
     return mermaid_code
 
